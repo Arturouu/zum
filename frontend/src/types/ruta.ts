@@ -1,4 +1,4 @@
-// Tipos del contrato con el backend (ver docs/design/HANDOFF.md, "Contrato con el backend").
+// Tipos del contrato con el backend (POST /api/route).
 // Todas las coordenadas van en orden [lon, lat], el mismo que usa MapLibre.
 
 export type LngLat = [number, number]

@@ -26,10 +26,9 @@ zum/
 │   ├── app/                # FastAPI app, graph loading, Dijkstra, backtracking, schemas
 │   └── tests/              # pytest tests
 ├── dataset/                # Santiago de Surco road graph and the script that documents how it was built
-├── docs/design/            # Design handoff: screen PNGs, tokens.css, logos
 └── frontend/
     └── src/
-        ├── components/     # Design system components (see docs/design/HANDOFF.md)
+        ├── components/     # Design system components
         ├── map/            # MapLibre config, layers, markers, Surco boundary
         ├── services/       # API calls (route.ts) and geolocation
         ├── stores/         # Shared trip state (origin, deliveries, route)
@@ -119,7 +118,7 @@ The TypeScript types live in `frontend/src/types/ruta.ts`.
 
 - **Branches:** `feature/<name>` branches created from `develop`.
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/) written in English, e.g. `feat(frontend): ...`, `fix(backend): ...`, `docs: ...`.
-- **Design:** colors, spacing, radii and typography come only from `frontend/src/styles/tokens.css`. The rules are in `docs/design/HANDOFF.md`.
+- **Design:** colors, spacing, radii and typography come only from `frontend/src/styles/tokens.css`.
 - **Distance only:** routes are optimized by distance (`length` in meters), never by time or traffic, and respect one-way streets.
 
 ## Data Sources

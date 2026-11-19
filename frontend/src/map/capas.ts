@@ -63,7 +63,7 @@ export function agregarLimiteSurco(mapa: MapaLibre, oscuro: boolean) {
 }
 
 /**
- * Fuente vacía + las dos capas de la ruta (handoff: "route-casing" abajo, "route" arriba).
+ * Fuente vacía + las dos capas de la ruta: "route-casing" abajo y "route" arriba.
  * Para dibujar una ruta, usar mostrarRuta().
  */
 export function agregarCapasRuta(mapa: MapaLibre) {

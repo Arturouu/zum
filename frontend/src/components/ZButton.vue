@@ -75,7 +75,7 @@ const props = withDefaults(
   flex: none;
 }
 
-/* Regla del handoff: el texto sobre coral es azul noche, nunca blanco */
+/* Regla de diseño: el texto sobre coral es azul noche, nunca blanco (contraste) */
 .zbtn--primary {
   background: var(--brand);
   color: var(--text-on-brand);
