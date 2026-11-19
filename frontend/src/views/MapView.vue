@@ -31,7 +31,7 @@ import { letraEntrega } from '../utils/formato'
 
 // Pantallas 03 a 06 en una sola vista. El mapa se crea una vez y no se destruye al cambiar de estado.
 // Por ahora implementa el estado "sin-entregas" (03): elegir el origen y ver Surco.
-// Los estados con-entregas → calculando → ruta-lista → pasos quedan para el equipo (ver README).
+// Los estados con-entregas → calculando → ruta-lista → pasos quedan para el equipo (ver los TODO(equipo)).
 
 const esEscritorio = useEsEscritorio()
 const modoOscuro = useMediaQuery('(prefers-color-scheme: dark)')
