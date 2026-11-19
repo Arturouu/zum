@@ -44,7 +44,7 @@ const resumenEntregas = computed(() => {
       <span class="fila__icono" aria-hidden="true"><span class="punto-origen" /></span>
       <span class="sr-only">Origen:</span>
       <p class="campo" :class="props.origen ? 'campo--origen' : 'campo--vacio'">
-        {{ props.origen ?? 'Toca el mapa para elegir tu punto de partida' }}
+        {{ props.origen ?? 'Toca el mapa para elegir' }}
       </p>
     </div>
 
