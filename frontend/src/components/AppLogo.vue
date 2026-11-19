@@ -2,16 +2,17 @@
 import zumIcon from '../assets/zum-icon.svg'
 import zumMark from '../assets/zum-mark.svg'
 
-// "oscura": la Z sola, para fondos azul noche (bienvenida).
-// "clara": el ícono de app con fondo, para paneles claros.
+// "icono": el ícono de app (Z sobre fondo azul noche), para paneles.
+// "marca": la Z sola, para pantallas grandes como la bienvenida.
+// El texto toma --text-primary, así que funciona en modo claro y oscuro.
 const props = withDefaults(
   defineProps<{
-    variante?: 'clara' | 'oscura'
+    variante?: 'icono' | 'marca'
     tamano?: 'sm' | 'lg' | 'xl'
     /** Etiqueta del <h1> si el logo es el título de la pantalla */
     comoTitulo?: boolean
   }>(),
-  { variante: 'clara', tamano: 'sm', comoTitulo: false },
+  { variante: 'icono', tamano: 'sm', comoTitulo: false },
 )
 </script>
 
@@ -19,7 +20,7 @@ const props = withDefaults(
   <div class="logo" :class="[`logo--${props.variante}`, `logo--${props.tamano}`]">
     <img
       class="logo__img"
-      :src="props.variante === 'oscura' ? zumMark : zumIcon"
+      :src="props.variante === 'marca' ? zumMark : zumIcon"
       alt=""
       aria-hidden="true"
     />
