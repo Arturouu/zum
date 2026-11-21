@@ -213,7 +213,12 @@ const pasos = computed(() => {
 function seleccionarParada(id: number) {
   paradaSeleccionada.value = paradaSeleccionada.value === id ? null : id
   const entrega = viaje.entregas.find((e) => e.id === paradaSeleccionada.value)
-  if (entrega) mapa.value?.easeTo({ center: entrega.coords })
+  if (entrega) {
+    mapa.value?.easeTo({
+      center: entrega.coords,
+      padding: esEscritorio.value ? undefined : { top: 0, right: 0, bottom: Math.round(window.innerHeight * 0.4), left: 0 },
+    })
+  }
 }
 
 watch([paradaSeleccionada, enPasos], dibujarEntregas)
