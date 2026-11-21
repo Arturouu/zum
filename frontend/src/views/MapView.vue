@@ -22,9 +22,9 @@ import {
   ZOOM_MINIMO,
   ZOOM_PUNTO,
 } from '../map/config'
-import { crearMarcadorOrigen } from '../map/marcadores'
+import { crearMarcadorOrigen, crearMarcadorParada } from '../map/marcadores'
 import { obtenerUbicacion } from '../services/ubicacion'
-import { fijarOrigen, MAX_ENTREGAS, viaje, type Aviso } from '../stores/viaje'
+import { agregarEntrega, fijarOrigen, MAX_ENTREGAS, viaje, type Aviso } from '../stores/viaje'
 import type { LngLat } from '../types/ruta'
 import { estaDentroDeSurco } from '../utils/geo'
 import { letraEntrega } from '../utils/formato'
@@ -39,6 +39,7 @@ const modoOscuro = useMediaQuery('(prefers-color-scheme: dark)')
 const contenedor = ref<HTMLDivElement>()
 const mapa = shallowRef<MapaLibre>()
 let marcadorOrigen: Marker | null = null
+let marcadoresEntregas: Marker[] = []
 
 const aviso = ref<Aviso | null>(viaje.aviso)
 viaje.aviso = null
@@ -75,10 +76,12 @@ onMounted(() => {
 
   mapa.value = m
   dibujarOrigen()
+  dibujarEntregas()
 })
 
 onBeforeUnmount(() => {
   marcadorOrigen?.remove()
+  marcadoresEntregas.forEach((m) => m.remove())
   mapa.value?.remove()
 })
 
@@ -129,10 +132,20 @@ function alTocarMapa(e: MapMouseEvent) {
     return
   }
 
-  // TODO(equipo): agregar una entrega en `punto` (pantalla 04).
-  //  - Respetar MAX_ENTREGAS y avisar si se llega al límite.
-  //  - viaje.entregas.push({ id, coords: punto }) y dibujar crearMarcadorParada(letraEntrega(i), punto).
+  agregarEntrega(punto)
 }
+
+// ---------- Entregas (pantalla 04) ----------
+
+function dibujarEntregas() {
+  const m = mapa.value
+  if (!m) return
+  // Máximo 10 marcadores: más simple recrearlos que renombrar letras al quitar una entrega
+  marcadoresEntregas.forEach((marcador) => marcador.remove())
+  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(letraEntrega(i), e.coords).addTo(m))
+}
+
+watch(() => viaje.entregas, dibujarEntregas, { deep: true })
 
 async function centrarEnMiUbicacion() {
   buscandoUbicacion.value = true
