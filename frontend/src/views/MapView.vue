@@ -24,6 +24,7 @@ import {
   ZOOM_PUNTO,
 } from '../map/config'
 import { crearMarcadorOrigen, crearMarcadorParada } from '../map/marcadores'
+import { calcularRuta } from '../services/route'
 import { obtenerUbicacion } from '../services/ubicacion'
 import { agregarEntrega, fijarOrigen, MAX_ENTREGAS, quitarEntrega, viaje, type Aviso } from '../stores/viaje'
 import type { LngLat } from '../types/ruta'
@@ -195,13 +196,26 @@ async function centrarEnMiUbicacion() {
 
 // ---------- Calcular ----------
 
-function calcular() {
-  if (viaje.entregas.length === 0) {
+const calculando = ref(false)
+
+async function calcular() {
+  if (calculando.value) return
+  if (viaje.entregas.length === 0 || !viaje.origen) {
     aviso.value = { tono: 'warning', texto: 'Agrega al menos una entrega para calcular la ruta.' }
     return
   }
-  // TODO(equipo): llamar a calcularRuta() de services/route.ts, guardar la respuesta en
-  // viaje.ruta, dibujarla con mostrarRuta() y renumerar las paradas según `order` (pantalla 05).
+  aviso.value = null
+  calculando.value = true
+  try {
+    viaje.ruta = await calcularRuta({
+      origin: viaje.origen,
+      deliveries: viaje.entregas.map((e) => e.coords),
+    })
+  } catch (e) {
+    aviso.value = { tono: 'error', texto: (e as Error).message }
+  } finally {
+    calculando.value = false
+  }
 }
 </script>
 
@@ -280,9 +294,9 @@ function calcular() {
           </button>
         </template>
 
-        <ZButton bloque @click="calcular">
+        <ZButton bloque :cargando="calculando" @click="calcular">
           <template #icono><IconRoute :size="20" aria-hidden="true" /></template>
-          Calcular ruta
+          {{ calculando ? 'Calculando…' : 'Calcular ruta' }}
         </ZButton>
 
         <p v-if="!esEscritorio" class="atribucion">
