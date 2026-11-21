@@ -175,7 +175,7 @@ function dibujarEntregas() {
   if (!m) return
   // Máximo 10 marcadores: más simple recrearlos que renombrar letras al quitar una entrega
   marcadoresEntregas.forEach((marcador) => marcador.remove())
-  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(etiquetaDe(i), e.coords).addTo(m))
+  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(etiquetaDe(i), e.coords, enPasos.value && e.id === paradaSeleccionada.value).addTo(m))
 }
 
 // Antes de calcular: letra por orden de agregado. Con ruta: número de visita según `order`
@@ -190,6 +190,7 @@ watch(() => viaje.entregas, dibujarEntregas, { deep: true })
 // ---------- Pasos (pantalla 06) ----------
 
 const enPasos = ref(false)
+const paradaSeleccionada = ref<number | null>(null)
 const nombreSalida = computed(() => (viaje.nombreOrigen ?? 'el origen').replace(/^Tu/, 'tu').replace(/^Punto/, 'el punto'))
 
 // Entregas en orden de visita. `order[k]` es la parada k (0 = origen) y `legs[k - 1]` el tramo que llega a ella.
@@ -207,6 +208,15 @@ const pasos = computed(() => {
     }
   })
 })
+
+// Tocar una parada la resalta en la lista y en el mapa; tocarla otra vez quita el resalte
+function seleccionarParada(id: number) {
+  paradaSeleccionada.value = paradaSeleccionada.value === id ? null : id
+  const entrega = viaje.entregas.find((e) => e.id === paradaSeleccionada.value)
+  if (entrega) mapa.value?.easeTo({ center: entrega.coords })
+}
+
+watch([paradaSeleccionada, enPasos], dibujarEntregas)
 
 // ---------- Ruta (pantalla 05) ----------
 
@@ -236,6 +246,7 @@ function dibujarRuta() {
 
 watch(() => viaje.ruta, () => {
   if (!viaje.ruta) enPasos.value = false // sin ruta no hay pasos que mostrar
+  paradaSeleccionada.value = null
   dibujarRuta()
   dibujarEntregas()
 })
@@ -345,7 +356,13 @@ async function calcular() {
             Volver al resumen
           </ZButton>
           <h1 class="text-heading">Orden de visita</h1>
-          <StopList :paradas="pasos" :origen="viaje.nombreOrigen ?? 'Origen'" />
+          <StopList
+            :paradas="pasos"
+            :origen="viaje.nombreOrigen ?? 'Origen'"
+            seleccionable
+            :seleccionada="paradaSeleccionada"
+            @seleccionar="seleccionarParada"
+          />
         </template>
 
         <template v-else>
