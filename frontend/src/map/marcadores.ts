@@ -16,14 +16,15 @@ export function crearMarcadorOrigen(coords: LngLat): Marker {
 /**
  * Marcador de parada: StopMarker con letra (A, B, C…) antes de calcular
  * o número (1, 2, 3…) en el orden óptimo después.
+ * Con `seleccionada` se le agrega el halo de la parada resaltada (pantalla 06).
  *
  *   crearMarcadorParada('A', [-76.99, -12.14]).addTo(mapa)
  */
-export function crearMarcadorParada(etiqueta: string, coords: LngLat): Marker {
+export function crearMarcadorParada(etiqueta: string, coords: LngLat, seleccionada = false): Marker {
   const el = document.createElement('div')
   el.setAttribute('role', 'img')
   el.setAttribute('aria-label', `Parada ${etiqueta}`)
-  const app = createApp(StopMarker, { etiqueta, enMapa: true })
+  const app = createApp(StopMarker, { etiqueta, enMapa: true, seleccionada })
   app.mount(el)
 
   const marcador = new Marker({ element: el }).setLngLat(coords)

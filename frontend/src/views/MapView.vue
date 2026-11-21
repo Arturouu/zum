@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IconCurrentLocation, IconMinus, IconPlus, IconRoute } from '@tabler/icons-vue'
+import { IconArrowLeft, IconCurrentLocation, IconListNumbers, IconMinus, IconPlus, IconRoute } from '@tabler/icons-vue'
 import { LngLatBounds, Map as MapaLibre, setWorkerUrl, type MapMouseEvent, type Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import urlWorkerMapLibre from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
@@ -30,7 +30,7 @@ import { obtenerUbicacion } from '../services/ubicacion'
 import { agregarEntrega, fijarOrigen, MAX_ENTREGAS, quitarEntrega, viaje, type Aviso } from '../stores/viaje'
 import type { LngLat } from '../types/ruta'
 import { estaDentroDeSurco } from '../utils/geo'
-import { letraEntrega } from '../utils/formato'
+import { formatearDistancia, formatearMs, letraEntrega } from '../utils/formato'
 
 // Pantallas 03 a 06 en una sola vista. El mapa se crea una vez y no se destruye al cambiar de estado.
 // Por ahora implementa el estado "sin-entregas" (03): elegir el origen y ver Surco.
@@ -175,7 +175,7 @@ function dibujarEntregas() {
   if (!m) return
   // Máximo 10 marcadores: más simple recrearlos que renombrar letras al quitar una entrega
   marcadoresEntregas.forEach((marcador) => marcador.remove())
-  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(etiquetaDe(i), e.coords).addTo(m))
+  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(etiquetaDe(i), e.coords, enPasos.value && e.id === paradaSeleccionada.value).addTo(m))
 }
 
 // Antes de calcular: letra por orden de agregado. Con ruta: número de visita según `order`
@@ -186,6 +186,42 @@ function etiquetaDe(indice: number): string {
 }
 
 watch(() => viaje.entregas, dibujarEntregas, { deep: true })
+
+// ---------- Pasos (pantalla 06) ----------
+
+const enPasos = ref(false)
+const paradaSeleccionada = ref<number | null>(null)
+const nombreSalida = computed(() => (viaje.nombreOrigen ?? 'el origen').replace(/^Tu/, 'tu').replace(/^Punto/, 'el punto'))
+
+// Entregas en orden de visita. `order[k]` es la parada k (0 = origen) y `legs[k - 1]` el tramo que llega a ella.
+const pasos = computed(() => {
+  const ruta = viaje.ruta
+  if (!ruta) return []
+  return ruta.order.slice(1).map((indiceEnPedido, k) => {
+    const entrega = viaje.entregas[indiceEnPedido - 1]
+    return {
+      id: entrega.id,
+      marcador: String(k + 1),
+      titulo: `Entrega ${letraEntrega(indiceEnPedido - 1)}`,
+      subtitulo: k === 0 ? `Desde ${nombreSalida.value}` : `Desde la parada ${k}`,
+      distanciaM: ruta.legs[k].distance_m,
+    }
+  })
+})
+
+// Tocar una parada la resalta en la lista y en el mapa; tocarla otra vez quita el resalte
+function seleccionarParada(id: number) {
+  paradaSeleccionada.value = paradaSeleccionada.value === id ? null : id
+  const entrega = viaje.entregas.find((e) => e.id === paradaSeleccionada.value)
+  if (entrega) {
+    mapa.value?.easeTo({
+      center: entrega.coords,
+      padding: esEscritorio.value ? undefined : { top: 0, right: 0, bottom: Math.round(window.innerHeight * 0.4), left: 0 },
+    })
+  }
+}
+
+watch([paradaSeleccionada, enPasos], dibujarEntregas)
 
 // ---------- Ruta (pantalla 05) ----------
 
@@ -214,6 +250,8 @@ function dibujarRuta() {
 }
 
 watch(() => viaje.ruta, () => {
+  if (!viaje.ruta) enPasos.value = false // sin ruta no hay pasos que mostrar
+  paradaSeleccionada.value = null
   dibujarRuta()
   dibujarEntregas()
 })
@@ -266,7 +304,16 @@ async function calcular() {
 
     <!-- Celular: tarjeta flotante arriba -->
     <div v-if="!esEscritorio" class="capa-superior">
-      <LocationCard
+      <div v-if="enPasos && viaje.ruta" class="barra-pasos">
+        <button type="button" class="barra-pasos__volver" aria-label="Volver al resumen" @click="enPasos = false">
+          <IconArrowLeft :size="20" aria-hidden="true" />
+        </button>
+        <span class="barra-pasos__titulo">Pasos</span>
+        <span class="text-metric-sm barra-pasos__metricas">
+          {{ formatearDistancia(viaje.ruta.total_distance_m) }} · {{ formatearMs(viaje.ruta.exec_ms) }}
+        </span>
+      </div>
+      <LocationCard v-else
         :origen="viaje.nombreOrigen"
         :entregas="viaje.entregas.map((_, i) => letraEntrega(i))"
         :compacto="!!viaje.ruta"
@@ -317,6 +364,22 @@ async function calcular() {
           :entregas="viaje.entregas.map((_, i) => letraEntrega(i))"
         />
 
+        <template v-if="enPasos && viaje.ruta">
+          <ZButton v-if="esEscritorio" variante="ghost" @click="enPasos = false">
+            <template #icono><IconArrowLeft :size="20" aria-hidden="true" /></template>
+            Volver al resumen
+          </ZButton>
+          <h1 class="text-heading">Orden de visita</h1>
+          <StopList
+            :paradas="pasos"
+            :origen="viaje.nombreOrigen ?? 'Origen'"
+            seleccionable
+            :seleccionada="paradaSeleccionada"
+            @seleccionar="seleccionarParada"
+          />
+        </template>
+
+        <template v-else>
         <div class="titulo">
           <img v-if="!esEscritorio" :src="zumIcon" alt="" width="32" height="32" />
           <h1 class="text-heading">Tu ruta de hoy</h1>
@@ -332,7 +395,13 @@ async function calcular() {
         >
           <p class="indicacion">Orden de visita con la menor distancia total</p>
         </RouteSummary>
-        <ZButton v-if="viaje.ruta" bloque variante="secondary" @click="editar">Editar entregas</ZButton>
+        <div v-if="viaje.ruta" class="acciones">
+          <ZButton class="acciones__principal" @click="enPasos = true">
+            <template #icono><IconListNumbers :size="20" aria-hidden="true" /></template>
+            Ver pasos
+          </ZButton>
+          <ZButton variante="secondary" @click="editar">Editar</ZButton>
+        </div>
 
         <p v-else-if="!hayEntregas" class="indicacion">
           <template v-if="!viaje.origen">Toca el mapa para elegir tu punto de partida dentro de Surco.</template>
@@ -357,6 +426,7 @@ async function calcular() {
           <template #icono><IconRoute :size="20" aria-hidden="true" /></template>
           {{ calculando ? 'Calculando…' : 'Calcular ruta' }}
         </ZButton>
+        </template>
 
         <p v-if="!esEscritorio" class="atribucion">
           © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> ·
@@ -389,6 +459,43 @@ async function calcular() {
   pointer-events: none;
 }
 
+.barra-pasos {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 56px;
+  padding: 0 var(--space-4) 0 var(--space-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-control);
+  pointer-events: auto;
+}
+
+.barra-pasos__volver {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-target);
+  height: var(--hit-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.barra-pasos__titulo {
+  flex: 1;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.barra-pasos__metricas {
+  color: var(--text-secondary);
+}
+
 .capa-inferior {
   position: absolute;
   right: 0;
@@ -406,6 +513,15 @@ async function calcular() {
 
 .aviso-movil {
   margin: 0 var(--space-4) var(--space-3);
+}
+
+.acciones {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.acciones__principal {
+  flex: 1;
 }
 
 .titulo {
