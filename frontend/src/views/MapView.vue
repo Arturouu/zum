@@ -139,6 +139,7 @@ function alTocarMapa(e: MapMouseEvent) {
 // ---------- Entregas (pantalla 04) ----------
 
 const hayEntregas = computed(() => viaje.entregas.length > 0)
+const enLimite = computed(() => viaje.entregas.length >= MAX_ENTREGAS)
 const tituloEntregas = computed(() => {
   const n = viaje.entregas.length
   return `${n} ${n === 1 ? 'entrega' : 'entregas'}`
@@ -157,6 +158,12 @@ function avisarLimite() {
 
 function agregar(punto: LngLat) {
   if (!agregarEntrega(punto)) avisarLimite()
+}
+
+// El botón "Agregar entrega" solo orienta: las entregas se marcan tocando el mapa.
+function pedirEntrega() {
+  if (enLimite.value) return avisarLimite()
+  aviso.value = { tono: 'success', texto: 'Toca el mapa para marcar la siguiente entrega.' }
 }
 
 function dibujarEntregas() {
@@ -267,6 +274,10 @@ function calcular() {
             <span class="limite">Máximo {{ MAX_ENTREGAS }}</span>
           </div>
           <StopList :paradas="paradas" quitable @quitar="quitarEntrega" />
+          <button type="button" class="agregar" @click="pedirEntrega">
+            <IconPlus :size="18" aria-hidden="true" />
+            Agregar entrega
+          </button>
         </template>
 
         <ZButton bloque @click="calcular">
@@ -345,6 +356,21 @@ function calcular() {
   line-height: 20px;
   font-weight: 500;
   color: var(--text-secondary);
+}
+
+.agregar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  height: var(--hit-target);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--text-danger);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .atribucion {
