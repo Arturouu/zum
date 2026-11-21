@@ -40,3 +40,18 @@ export function quitarOrigen() {
   viaje.nombreOrigen = null
   viaje.ruta = null
 }
+
+let siguienteId = 1
+
+/** Agrega una entrega al final. Devuelve false si ya se llegó a MAX_ENTREGAS. */
+export function agregarEntrega(coords: LngLat): boolean {
+  if (viaje.entregas.length >= MAX_ENTREGAS) return false
+  viaje.entregas.push({ id: siguienteId++, coords })
+  viaje.ruta = null
+  return true
+}
+
+export function quitarEntrega(id: number) {
+  viaje.entregas = viaje.entregas.filter((e) => e.id !== id)
+  viaje.ruta = null
+}

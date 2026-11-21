@@ -3,13 +3,14 @@ import { IconCurrentLocation, IconMinus, IconPlus, IconRoute } from '@tabler/ico
 import { Map as MapaLibre, setWorkerUrl, type MapMouseEvent, type Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import urlWorkerMapLibre from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import zumIcon from '../assets/zum-icon.svg'
 import AppLogo from '../components/AppLogo.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import LocationCard from '../components/LocationCard.vue'
 import MapControl from '../components/MapControl.vue'
 import StatusBanner from '../components/StatusBanner.vue'
+import StopList from '../components/StopList.vue'
 import ZButton from '../components/ZButton.vue'
 import { useEsEscritorio, useMediaQuery } from '../composables/useMediaQuery'
 import { agregarCapasRuta, agregarLimiteSurco } from '../map/capas'
@@ -22,9 +23,9 @@ import {
   ZOOM_MINIMO,
   ZOOM_PUNTO,
 } from '../map/config'
-import { crearMarcadorOrigen } from '../map/marcadores'
+import { crearMarcadorOrigen, crearMarcadorParada } from '../map/marcadores'
 import { obtenerUbicacion } from '../services/ubicacion'
-import { fijarOrigen, MAX_ENTREGAS, viaje, type Aviso } from '../stores/viaje'
+import { agregarEntrega, fijarOrigen, MAX_ENTREGAS, quitarEntrega, viaje, type Aviso } from '../stores/viaje'
 import type { LngLat } from '../types/ruta'
 import { estaDentroDeSurco } from '../utils/geo'
 import { letraEntrega } from '../utils/formato'
@@ -39,6 +40,7 @@ const modoOscuro = useMediaQuery('(prefers-color-scheme: dark)')
 const contenedor = ref<HTMLDivElement>()
 const mapa = shallowRef<MapaLibre>()
 let marcadorOrigen: Marker | null = null
+let marcadoresEntregas: Marker[] = []
 
 const aviso = ref<Aviso | null>(viaje.aviso)
 viaje.aviso = null
@@ -75,10 +77,12 @@ onMounted(() => {
 
   mapa.value = m
   dibujarOrigen()
+  dibujarEntregas()
 })
 
 onBeforeUnmount(() => {
   marcadorOrigen?.remove()
+  marcadoresEntregas.forEach((m) => m.remove())
   mapa.value?.remove()
 })
 
@@ -129,10 +133,48 @@ function alTocarMapa(e: MapMouseEvent) {
     return
   }
 
-  // TODO(equipo): agregar una entrega en `punto` (pantalla 04).
-  //  - Respetar MAX_ENTREGAS y avisar si se llega al límite.
-  //  - viaje.entregas.push({ id, coords: punto }) y dibujar crearMarcadorParada(letraEntrega(i), punto).
+  agregar(punto)
 }
+
+// ---------- Entregas (pantalla 04) ----------
+
+const hayEntregas = computed(() => viaje.entregas.length > 0)
+const enLimite = computed(() => viaje.entregas.length >= MAX_ENTREGAS)
+const tituloEntregas = computed(() => {
+  const n = viaje.entregas.length
+  return `${n} ${n === 1 ? 'entrega' : 'entregas'}`
+})
+const paradas = computed(() =>
+  viaje.entregas.map((e, i) => ({
+    id: e.id,
+    marcador: letraEntrega(i),
+    titulo: `Entrega ${letraEntrega(i)}`,
+  })),
+)
+
+function avisarLimite() {
+  aviso.value = { tono: 'warning', texto: `Llegaste al máximo de ${MAX_ENTREGAS} entregas. Quita una para agregar otra.` }
+}
+
+function agregar(punto: LngLat) {
+  if (!agregarEntrega(punto)) avisarLimite()
+}
+
+// El botón "Agregar entrega" solo orienta: las entregas se marcan tocando el mapa.
+function pedirEntrega() {
+  if (enLimite.value) return avisarLimite()
+  aviso.value = { tono: 'success', texto: 'Toca el mapa para marcar la siguiente entrega.' }
+}
+
+function dibujarEntregas() {
+  const m = mapa.value
+  if (!m) return
+  // Máximo 10 marcadores: más simple recrearlos que renombrar letras al quitar una entrega
+  marcadoresEntregas.forEach((marcador) => marcador.remove())
+  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(letraEntrega(i), e.coords).addTo(m))
+}
+
+watch(() => viaje.entregas, dibujarEntregas, { deep: true })
 
 async function centrarEnMiUbicacion() {
   buscandoUbicacion.value = true
@@ -219,12 +261,24 @@ function calcular() {
           <img v-if="!esEscritorio" :src="zumIcon" alt="" width="32" height="32" />
           <h1 class="text-heading">Tu ruta de hoy</h1>
         </div>
-        <p class="indicacion">
+        <p v-if="!hayEntregas" class="indicacion">
           <template v-if="!viaje.origen">Toca el mapa para elegir tu punto de partida dentro de Surco.</template>
           <template v-else>
             Toca el mapa para agregar tu primera entrega. Puedes sumar hasta {{ MAX_ENTREGAS }}.
           </template>
         </p>
+
+        <template v-else>
+          <div class="encabezado-entregas">
+            <h2 class="text-heading">{{ tituloEntregas }}</h2>
+            <span class="limite">Máximo {{ MAX_ENTREGAS }}</span>
+          </div>
+          <StopList :paradas="paradas" quitable @quitar="quitarEntrega" />
+          <button type="button" class="agregar" @click="pedirEntrega">
+            <IconPlus :size="18" aria-hidden="true" />
+            Agregar entrega
+          </button>
+        </template>
 
         <ZButton bloque @click="calcular">
           <template #icono><IconRoute :size="20" aria-hidden="true" /></template>
@@ -289,6 +343,34 @@ function calcular() {
 
 .indicacion {
   color: var(--text-secondary);
+}
+
+.encabezado-entregas {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.limite {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.agregar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  height: var(--hit-target);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--text-danger);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .atribucion {
