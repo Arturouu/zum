@@ -3,13 +3,14 @@ import { IconCurrentLocation, IconMinus, IconPlus, IconRoute } from '@tabler/ico
 import { Map as MapaLibre, setWorkerUrl, type MapMouseEvent, type Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import urlWorkerMapLibre from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import zumIcon from '../assets/zum-icon.svg'
 import AppLogo from '../components/AppLogo.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import LocationCard from '../components/LocationCard.vue'
 import MapControl from '../components/MapControl.vue'
 import StatusBanner from '../components/StatusBanner.vue'
+import StopList from '../components/StopList.vue'
 import ZButton from '../components/ZButton.vue'
 import { useEsEscritorio, useMediaQuery } from '../composables/useMediaQuery'
 import { agregarCapasRuta, agregarLimiteSurco } from '../map/capas'
@@ -24,7 +25,7 @@ import {
 } from '../map/config'
 import { crearMarcadorOrigen, crearMarcadorParada } from '../map/marcadores'
 import { obtenerUbicacion } from '../services/ubicacion'
-import { agregarEntrega, fijarOrigen, MAX_ENTREGAS, viaje, type Aviso } from '../stores/viaje'
+import { agregarEntrega, fijarOrigen, MAX_ENTREGAS, quitarEntrega, viaje, type Aviso } from '../stores/viaje'
 import type { LngLat } from '../types/ruta'
 import { estaDentroDeSurco } from '../utils/geo'
 import { letraEntrega } from '../utils/formato'
@@ -137,6 +138,19 @@ function alTocarMapa(e: MapMouseEvent) {
 
 // ---------- Entregas (pantalla 04) ----------
 
+const hayEntregas = computed(() => viaje.entregas.length > 0)
+const tituloEntregas = computed(() => {
+  const n = viaje.entregas.length
+  return `${n} ${n === 1 ? 'entrega' : 'entregas'}`
+})
+const paradas = computed(() =>
+  viaje.entregas.map((e, i) => ({
+    id: e.id,
+    marcador: letraEntrega(i),
+    titulo: `Entrega ${letraEntrega(i)}`,
+  })),
+)
+
 function avisarLimite() {
   aviso.value = { tono: 'warning', texto: `Llegaste al máximo de ${MAX_ENTREGAS} entregas. Quita una para agregar otra.` }
 }
@@ -240,12 +254,20 @@ function calcular() {
           <img v-if="!esEscritorio" :src="zumIcon" alt="" width="32" height="32" />
           <h1 class="text-heading">Tu ruta de hoy</h1>
         </div>
-        <p class="indicacion">
+        <p v-if="!hayEntregas" class="indicacion">
           <template v-if="!viaje.origen">Toca el mapa para elegir tu punto de partida dentro de Surco.</template>
           <template v-else>
             Toca el mapa para agregar tu primera entrega. Puedes sumar hasta {{ MAX_ENTREGAS }}.
           </template>
         </p>
+
+        <template v-else>
+          <div class="encabezado-entregas">
+            <h2 class="text-heading">{{ tituloEntregas }}</h2>
+            <span class="limite">Máximo {{ MAX_ENTREGAS }}</span>
+          </div>
+          <StopList :paradas="paradas" quitable @quitar="quitarEntrega" />
+        </template>
 
         <ZButton bloque @click="calcular">
           <template #icono><IconRoute :size="20" aria-hidden="true" /></template>
@@ -309,6 +331,19 @@ function calcular() {
 }
 
 .indicacion {
+  color: var(--text-secondary);
+}
+
+.encabezado-entregas {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.limite {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
