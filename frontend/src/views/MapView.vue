@@ -9,6 +9,7 @@ import AppLogo from '../components/AppLogo.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import LocationCard from '../components/LocationCard.vue'
 import MapControl from '../components/MapControl.vue'
+import RouteSummary from '../components/RouteSummary.vue'
 import StatusBanner from '../components/StatusBanner.vue'
 import StopList from '../components/StopList.vue'
 import ZButton from '../components/ZButton.vue'
@@ -310,14 +311,26 @@ async function calcular() {
           <img v-if="!esEscritorio" :src="zumIcon" alt="" width="32" height="32" />
           <h1 class="text-heading">Tu ruta de hoy</h1>
         </div>
-        <p v-if="!hayEntregas" class="indicacion">
+        <RouteSummary
+          v-if="viaje.ruta"
+          :distancia-total-m="viaje.ruta.total_distance_m"
+          :exec-ms="viaje.ruta.exec_ms"
+          :estados-explorados="viaje.ruta.states_explored"
+          :ejecuciones-dijkstra="viaje.entregas.length + 1"
+          :detalle="tituloEntregas"
+          :en-caja="esEscritorio"
+        >
+          <p class="indicacion">Orden de visita con la menor distancia total</p>
+        </RouteSummary>
+
+        <p v-else-if="!hayEntregas" class="indicacion">
           <template v-if="!viaje.origen">Toca el mapa para elegir tu punto de partida dentro de Surco.</template>
           <template v-else>
             Toca el mapa para agregar tu primera entrega. Puedes sumar hasta {{ MAX_ENTREGAS }}.
           </template>
         </p>
 
-        <template v-else>
+        <template v-else-if="!viaje.ruta">
           <div class="encabezado-entregas">
             <h2 class="text-heading">{{ tituloEntregas }}</h2>
             <span class="limite">Máximo {{ MAX_ENTREGAS }}</span>
@@ -329,7 +342,7 @@ async function calcular() {
           </button>
         </template>
 
-        <ZButton bloque :cargando="calculando" @click="calcular">
+        <ZButton v-if="!viaje.ruta" bloque :cargando="calculando" @click="calcular">
           <template #icono><IconRoute :size="20" aria-hidden="true" /></template>
           {{ calculando ? 'Calculando…' : 'Calcular ruta' }}
         </ZButton>
