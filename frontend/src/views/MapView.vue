@@ -30,7 +30,7 @@ import { obtenerUbicacion } from '../services/ubicacion'
 import { agregarEntrega, fijarOrigen, MAX_ENTREGAS, quitarEntrega, viaje, type Aviso } from '../stores/viaje'
 import type { LngLat } from '../types/ruta'
 import { estaDentroDeSurco } from '../utils/geo'
-import { letraEntrega } from '../utils/formato'
+import { formatearDistancia, formatearMs, letraEntrega } from '../utils/formato'
 
 // Pantallas 03 a 06 en una sola vista. El mapa se crea una vez y no se destruye al cambiar de estado.
 // Por ahora implementa el estado "sin-entregas" (03): elegir el origen y ver Surco.
@@ -299,7 +299,16 @@ async function calcular() {
 
     <!-- Celular: tarjeta flotante arriba -->
     <div v-if="!esEscritorio" class="capa-superior">
-      <LocationCard
+      <div v-if="enPasos && viaje.ruta" class="barra-pasos">
+        <button type="button" class="barra-pasos__volver" aria-label="Volver al resumen" @click="enPasos = false">
+          <IconArrowLeft :size="20" aria-hidden="true" />
+        </button>
+        <span class="barra-pasos__titulo">Pasos</span>
+        <span class="text-metric-sm barra-pasos__metricas">
+          {{ formatearDistancia(viaje.ruta.total_distance_m) }} · {{ formatearMs(viaje.ruta.exec_ms) }}
+        </span>
+      </div>
+      <LocationCard v-else
         :origen="viaje.nombreOrigen"
         :entregas="viaje.entregas.map((_, i) => letraEntrega(i))"
         :compacto="!!viaje.ruta"
@@ -443,6 +452,43 @@ async function calcular() {
   right: var(--space-4);
   left: var(--space-4);
   pointer-events: none;
+}
+
+.barra-pasos {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 56px;
+  padding: 0 var(--space-4) 0 var(--space-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-control);
+  pointer-events: auto;
+}
+
+.barra-pasos__volver {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-target);
+  height: var(--hit-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.barra-pasos__titulo {
+  flex: 1;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.barra-pasos__metricas {
+  color: var(--text-secondary);
 }
 
 .capa-inferior {
