@@ -124,7 +124,7 @@ function alSoltarOrigen() {
 }
 
 function alTocarMapa(e: MapMouseEvent) {
-  if (calculando.value) return
+  if (calculando.value || viaje.ruta) return // con ruta mostrada hay que tocar Editar primero
   const punto: LngLat = [e.lngLat.lng, e.lngLat.lat]
   if (!estaDentroDeSurco(punto)) {
     aviso.value = AVISO_FUERA
@@ -188,6 +188,11 @@ function etiquetaDe(indice: number): string {
 watch(() => viaje.entregas, dibujarEntregas, { deep: true })
 
 // ---------- Ruta (pantalla 05) ----------
+
+// Volver a editar: se descarta la ruta y reaparecen la lista y el botón Calcular ruta
+function editar() {
+  viaje.ruta = null
+}
 
 function dibujarRuta() {
   const m = mapa.value
@@ -261,7 +266,12 @@ async function calcular() {
 
     <!-- Celular: tarjeta flotante arriba -->
     <div v-if="!esEscritorio" class="capa-superior">
-      <LocationCard :origen="viaje.nombreOrigen" :entregas="viaje.entregas.map((_, i) => letraEntrega(i))" />
+      <LocationCard
+        :origen="viaje.nombreOrigen"
+        :entregas="viaje.entregas.map((_, i) => letraEntrega(i))"
+        :compacto="!!viaje.ruta"
+        @editar="editar"
+      />
     </div>
 
     <!-- Escritorio: controles arriba a la derecha y atribución en la esquina del mapa -->
@@ -322,6 +332,7 @@ async function calcular() {
         >
           <p class="indicacion">Orden de visita con la menor distancia total</p>
         </RouteSummary>
+        <ZButton v-if="viaje.ruta" bloque variante="secondary" @click="editar">Editar entregas</ZButton>
 
         <p v-else-if="!hayEntregas" class="indicacion">
           <template v-if="!viaje.origen">Toca el mapa para elegir tu punto de partida dentro de Surco.</template>
