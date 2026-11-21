@@ -187,6 +187,26 @@ function etiquetaDe(indice: number): string {
 
 watch(() => viaje.entregas, dibujarEntregas, { deep: true })
 
+// ---------- Pasos (pantalla 06) ----------
+
+const nombreSalida = computed(() => (viaje.nombreOrigen ?? 'el origen').replace(/^Tu/, 'tu').replace(/^Punto/, 'el punto'))
+
+// Entregas en orden de visita. `order[k]` es la parada k (0 = origen) y `legs[k - 1]` el tramo que llega a ella.
+const pasos = computed(() => {
+  const ruta = viaje.ruta
+  if (!ruta) return []
+  return ruta.order.slice(1).map((indiceEnPedido, k) => {
+    const entrega = viaje.entregas[indiceEnPedido - 1]
+    return {
+      id: entrega.id,
+      marcador: String(k + 1),
+      titulo: `Entrega ${letraEntrega(indiceEnPedido - 1)}`,
+      subtitulo: k === 0 ? `Desde ${nombreSalida.value}` : `Desde la parada ${k}`,
+      distanciaM: ruta.legs[k].distance_m,
+    }
+  })
+})
+
 // ---------- Ruta (pantalla 05) ----------
 
 // Volver a editar: se descarta la ruta y reaparecen la lista y el botón Calcular ruta
