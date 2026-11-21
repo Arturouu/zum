@@ -174,7 +174,14 @@ function dibujarEntregas() {
   if (!m) return
   // Máximo 10 marcadores: más simple recrearlos que renombrar letras al quitar una entrega
   marcadoresEntregas.forEach((marcador) => marcador.remove())
-  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(letraEntrega(i), e.coords).addTo(m))
+  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(etiquetaDe(i), e.coords).addTo(m))
+}
+
+// Antes de calcular: letra por orden de agregado. Con ruta: número de visita según `order`
+// (order[0] es el origen y la entrega i del pedido aparece como i + 1).
+function etiquetaDe(indice: number): string {
+  if (!viaje.ruta) return letraEntrega(indice)
+  return String(viaje.ruta.order.indexOf(indice + 1))
 }
 
 watch(() => viaje.entregas, dibujarEntregas, { deep: true })
@@ -200,7 +207,10 @@ function dibujarRuta() {
   })
 }
 
-watch(() => viaje.ruta, dibujarRuta)
+watch(() => viaje.ruta, () => {
+  dibujarRuta()
+  dibujarEntregas()
+})
 
 async function centrarEnMiUbicacion() {
   buscandoUbicacion.value = true
