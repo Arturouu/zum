@@ -132,10 +132,18 @@ function alTocarMapa(e: MapMouseEvent) {
     return
   }
 
-  agregarEntrega(punto)
+  agregar(punto)
 }
 
 // ---------- Entregas (pantalla 04) ----------
+
+function avisarLimite() {
+  aviso.value = { tono: 'warning', texto: `Llegaste al máximo de ${MAX_ENTREGAS} entregas. Quita una para agregar otra.` }
+}
+
+function agregar(punto: LngLat) {
+  if (!agregarEntrega(punto)) avisarLimite()
+}
 
 function dibujarEntregas() {
   const m = mapa.value
