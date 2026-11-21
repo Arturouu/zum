@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IconCurrentLocation, IconMinus, IconPlus, IconRoute } from '@tabler/icons-vue'
-import { Map as MapaLibre, setWorkerUrl, type MapMouseEvent, type Marker } from 'maplibre-gl'
+import { LngLatBounds, Map as MapaLibre, setWorkerUrl, type MapMouseEvent, type Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import urlWorkerMapLibre from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
@@ -9,11 +9,12 @@ import AppLogo from '../components/AppLogo.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import LocationCard from '../components/LocationCard.vue'
 import MapControl from '../components/MapControl.vue'
+import RouteSummary from '../components/RouteSummary.vue'
 import StatusBanner from '../components/StatusBanner.vue'
 import StopList from '../components/StopList.vue'
 import ZButton from '../components/ZButton.vue'
 import { useEsEscritorio, useMediaQuery } from '../composables/useMediaQuery'
-import { agregarCapasRuta, agregarLimiteSurco } from '../map/capas'
+import { agregarCapasRuta, agregarLimiteSurco, limpiarRuta, mostrarRuta } from '../map/capas'
 import {
   CENTRO_SURCO,
   ESTILO_CLARO,
@@ -24,6 +25,7 @@ import {
   ZOOM_PUNTO,
 } from '../map/config'
 import { crearMarcadorOrigen, crearMarcadorParada } from '../map/marcadores'
+import { calcularRuta } from '../services/route'
 import { obtenerUbicacion } from '../services/ubicacion'
 import { agregarEntrega, fijarOrigen, MAX_ENTREGAS, quitarEntrega, viaje, type Aviso } from '../stores/viaje'
 import type { LngLat } from '../types/ruta'
@@ -72,6 +74,7 @@ onMounted(() => {
   m.on('style.load', () => {
     agregarLimiteSurco(m, modoOscuro.value)
     agregarCapasRuta(m)
+    if (viaje.ruta) mostrarRuta(m, viaje.ruta.legs) // el cambio de estilo borra las capas
   })
   m.on('click', alTocarMapa)
 
@@ -121,6 +124,7 @@ function alSoltarOrigen() {
 }
 
 function alTocarMapa(e: MapMouseEvent) {
+  if (calculando.value || viaje.ruta) return // con ruta mostrada hay que tocar Editar primero
   const punto: LngLat = [e.lngLat.lng, e.lngLat.lat]
   if (!estaDentroDeSurco(punto)) {
     aviso.value = AVISO_FUERA
@@ -171,10 +175,48 @@ function dibujarEntregas() {
   if (!m) return
   // Máximo 10 marcadores: más simple recrearlos que renombrar letras al quitar una entrega
   marcadoresEntregas.forEach((marcador) => marcador.remove())
-  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(letraEntrega(i), e.coords).addTo(m))
+  marcadoresEntregas = viaje.entregas.map((e, i) => crearMarcadorParada(etiquetaDe(i), e.coords).addTo(m))
+}
+
+// Antes de calcular: letra por orden de agregado. Con ruta: número de visita según `order`
+// (order[0] es el origen y la entrega i del pedido aparece como i + 1).
+function etiquetaDe(indice: number): string {
+  if (!viaje.ruta) return letraEntrega(indice)
+  return String(viaje.ruta.order.indexOf(indice + 1))
 }
 
 watch(() => viaje.entregas, dibujarEntregas, { deep: true })
+
+// ---------- Ruta (pantalla 05) ----------
+
+// Volver a editar: se descarta la ruta y reaparecen la lista y el botón Calcular ruta
+function editar() {
+  viaje.ruta = null
+}
+
+function dibujarRuta() {
+  const m = mapa.value
+  if (!m) return
+  if (!viaje.ruta) {
+    limpiarRuta(m)
+    return
+  }
+  mostrarRuta(m, viaje.ruta.legs)
+  // Encuadra toda la ruta; el margen inferior deja libre la hoja en celular
+  const limites = new LngLatBounds()
+  viaje.ruta.legs.forEach((leg) => leg.coords.forEach((c) => limites.extend(c)))
+  m.fitBounds(limites, {
+    padding: esEscritorio.value
+      ? 80
+      : { top: 120, right: 40, bottom: Math.round(window.innerHeight * 0.4), left: 40 },
+    maxZoom: ZOOM_PUNTO,
+  })
+}
+
+watch(() => viaje.ruta, () => {
+  dibujarRuta()
+  dibujarEntregas()
+})
 
 async function centrarEnMiUbicacion() {
   buscandoUbicacion.value = true
@@ -195,13 +237,26 @@ async function centrarEnMiUbicacion() {
 
 // ---------- Calcular ----------
 
-function calcular() {
-  if (viaje.entregas.length === 0) {
+const calculando = ref(false)
+
+async function calcular() {
+  if (calculando.value) return
+  if (viaje.entregas.length === 0 || !viaje.origen) {
     aviso.value = { tono: 'warning', texto: 'Agrega al menos una entrega para calcular la ruta.' }
     return
   }
-  // TODO(equipo): llamar a calcularRuta() de services/route.ts, guardar la respuesta en
-  // viaje.ruta, dibujarla con mostrarRuta() y renumerar las paradas según `order` (pantalla 05).
+  aviso.value = null
+  calculando.value = true
+  try {
+    viaje.ruta = await calcularRuta({
+      origin: viaje.origen,
+      deliveries: viaje.entregas.map((e) => e.coords),
+    })
+  } catch (e) {
+    aviso.value = { tono: 'error', texto: (e as Error).message }
+  } finally {
+    calculando.value = false
+  }
 }
 </script>
 
@@ -211,7 +266,12 @@ function calcular() {
 
     <!-- Celular: tarjeta flotante arriba -->
     <div v-if="!esEscritorio" class="capa-superior">
-      <LocationCard :origen="viaje.nombreOrigen" :entregas="viaje.entregas.map((_, i) => letraEntrega(i))" />
+      <LocationCard
+        :origen="viaje.nombreOrigen"
+        :entregas="viaje.entregas.map((_, i) => letraEntrega(i))"
+        :compacto="!!viaje.ruta"
+        @editar="editar"
+      />
     </div>
 
     <!-- Escritorio: controles arriba a la derecha y atribución en la esquina del mapa -->
@@ -261,14 +321,27 @@ function calcular() {
           <img v-if="!esEscritorio" :src="zumIcon" alt="" width="32" height="32" />
           <h1 class="text-heading">Tu ruta de hoy</h1>
         </div>
-        <p v-if="!hayEntregas" class="indicacion">
+        <RouteSummary
+          v-if="viaje.ruta"
+          :distancia-total-m="viaje.ruta.total_distance_m"
+          :exec-ms="viaje.ruta.exec_ms"
+          :estados-explorados="viaje.ruta.states_explored"
+          :ejecuciones-dijkstra="viaje.entregas.length + 1"
+          :detalle="tituloEntregas"
+          :en-caja="esEscritorio"
+        >
+          <p class="indicacion">Orden de visita con la menor distancia total</p>
+        </RouteSummary>
+        <ZButton v-if="viaje.ruta" bloque variante="secondary" @click="editar">Editar entregas</ZButton>
+
+        <p v-else-if="!hayEntregas" class="indicacion">
           <template v-if="!viaje.origen">Toca el mapa para elegir tu punto de partida dentro de Surco.</template>
           <template v-else>
             Toca el mapa para agregar tu primera entrega. Puedes sumar hasta {{ MAX_ENTREGAS }}.
           </template>
         </p>
 
-        <template v-else>
+        <template v-else-if="!viaje.ruta">
           <div class="encabezado-entregas">
             <h2 class="text-heading">{{ tituloEntregas }}</h2>
             <span class="limite">Máximo {{ MAX_ENTREGAS }}</span>
@@ -280,9 +353,9 @@ function calcular() {
           </button>
         </template>
 
-        <ZButton bloque @click="calcular">
+        <ZButton v-if="!viaje.ruta" bloque :cargando="calculando" @click="calcular">
           <template #icono><IconRoute :size="20" aria-hidden="true" /></template>
-          Calcular ruta
+          {{ calculando ? 'Calculando…' : 'Calcular ruta' }}
         </ZButton>
 
         <p v-if="!esEscritorio" class="atribucion">
