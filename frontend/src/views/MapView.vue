@@ -122,6 +122,7 @@ function alSoltarOrigen() {
 }
 
 function alTocarMapa(e: MapMouseEvent) {
+  if (calculando.value) return
   const punto: LngLat = [e.lngLat.lng, e.lngLat.lat]
   if (!estaDentroDeSurco(punto)) {
     aviso.value = AVISO_FUERA
