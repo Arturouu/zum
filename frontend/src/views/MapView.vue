@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IconCurrentLocation, IconMinus, IconPlus, IconRoute } from '@tabler/icons-vue'
-import { Map as MapaLibre, setWorkerUrl, type MapMouseEvent, type Marker } from 'maplibre-gl'
+import { LngLatBounds, Map as MapaLibre, setWorkerUrl, type MapMouseEvent, type Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import urlWorkerMapLibre from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
@@ -13,7 +13,7 @@ import StatusBanner from '../components/StatusBanner.vue'
 import StopList from '../components/StopList.vue'
 import ZButton from '../components/ZButton.vue'
 import { useEsEscritorio, useMediaQuery } from '../composables/useMediaQuery'
-import { agregarCapasRuta, agregarLimiteSurco } from '../map/capas'
+import { agregarCapasRuta, agregarLimiteSurco, limpiarRuta, mostrarRuta } from '../map/capas'
 import {
   CENTRO_SURCO,
   ESTILO_CLARO,
@@ -73,6 +73,7 @@ onMounted(() => {
   m.on('style.load', () => {
     agregarLimiteSurco(m, modoOscuro.value)
     agregarCapasRuta(m)
+    if (viaje.ruta) mostrarRuta(m, viaje.ruta.legs) // el cambio de estilo borra las capas
   })
   m.on('click', alTocarMapa)
 
@@ -177,6 +178,29 @@ function dibujarEntregas() {
 }
 
 watch(() => viaje.entregas, dibujarEntregas, { deep: true })
+
+// ---------- Ruta (pantalla 05) ----------
+
+function dibujarRuta() {
+  const m = mapa.value
+  if (!m) return
+  if (!viaje.ruta) {
+    limpiarRuta(m)
+    return
+  }
+  mostrarRuta(m, viaje.ruta.legs)
+  // Encuadra toda la ruta; el margen inferior deja libre la hoja en celular
+  const limites = new LngLatBounds()
+  viaje.ruta.legs.forEach((leg) => leg.coords.forEach((c) => limites.extend(c)))
+  m.fitBounds(limites, {
+    padding: esEscritorio.value
+      ? 80
+      : { top: 120, right: 40, bottom: Math.round(window.innerHeight * 0.4), left: 40 },
+    maxZoom: ZOOM_PUNTO,
+  })
+}
+
+watch(() => viaje.ruta, dibujarRuta)
 
 async function centrarEnMiUbicacion() {
   buscandoUbicacion.value = true
