@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IconCurrentLocation, IconMinus, IconPlus, IconRoute } from '@tabler/icons-vue'
+import { IconArrowLeft, IconCurrentLocation, IconListNumbers, IconMinus, IconPlus, IconRoute } from '@tabler/icons-vue'
 import { LngLatBounds, Map as MapaLibre, setWorkerUrl, type MapMouseEvent, type Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import urlWorkerMapLibre from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
@@ -189,6 +189,7 @@ watch(() => viaje.entregas, dibujarEntregas, { deep: true })
 
 // ---------- Pasos (pantalla 06) ----------
 
+const enPasos = ref(false)
 const nombreSalida = computed(() => (viaje.nombreOrigen ?? 'el origen').replace(/^Tu/, 'tu').replace(/^Punto/, 'el punto'))
 
 // Entregas en orden de visita. `order[k]` es la parada k (0 = origen) y `legs[k - 1]` el tramo que llega a ella.
@@ -234,6 +235,7 @@ function dibujarRuta() {
 }
 
 watch(() => viaje.ruta, () => {
+  if (!viaje.ruta) enPasos.value = false // sin ruta no hay pasos que mostrar
   dibujarRuta()
   dibujarEntregas()
 })
@@ -337,6 +339,16 @@ async function calcular() {
           :entregas="viaje.entregas.map((_, i) => letraEntrega(i))"
         />
 
+        <template v-if="enPasos && viaje.ruta">
+          <ZButton v-if="esEscritorio" variante="ghost" @click="enPasos = false">
+            <template #icono><IconArrowLeft :size="20" aria-hidden="true" /></template>
+            Volver al resumen
+          </ZButton>
+          <h1 class="text-heading">Orden de visita</h1>
+          <StopList :paradas="pasos" :origen="viaje.nombreOrigen ?? 'Origen'" />
+        </template>
+
+        <template v-else>
         <div class="titulo">
           <img v-if="!esEscritorio" :src="zumIcon" alt="" width="32" height="32" />
           <h1 class="text-heading">Tu ruta de hoy</h1>
@@ -352,7 +364,13 @@ async function calcular() {
         >
           <p class="indicacion">Orden de visita con la menor distancia total</p>
         </RouteSummary>
-        <ZButton v-if="viaje.ruta" bloque variante="secondary" @click="editar">Editar entregas</ZButton>
+        <div v-if="viaje.ruta" class="acciones">
+          <ZButton class="acciones__principal" @click="enPasos = true">
+            <template #icono><IconListNumbers :size="20" aria-hidden="true" /></template>
+            Ver pasos
+          </ZButton>
+          <ZButton variante="secondary" @click="editar">Editar</ZButton>
+        </div>
 
         <p v-else-if="!hayEntregas" class="indicacion">
           <template v-if="!viaje.origen">Toca el mapa para elegir tu punto de partida dentro de Surco.</template>
@@ -377,6 +395,7 @@ async function calcular() {
           <template #icono><IconRoute :size="20" aria-hidden="true" /></template>
           {{ calculando ? 'Calculando…' : 'Calcular ruta' }}
         </ZButton>
+        </template>
 
         <p v-if="!esEscritorio" class="atribucion">
           © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> ·
@@ -426,6 +445,15 @@ async function calcular() {
 
 .aviso-movil {
   margin: 0 var(--space-4) var(--space-3);
+}
+
+.acciones {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.acciones__principal {
+  flex: 1;
 }
 
 .titulo {
